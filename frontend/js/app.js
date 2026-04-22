@@ -107,6 +107,7 @@ function showApp() {
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
     if (item.classList.contains('disabled') || item.classList.contains('hidden')) return;
+    if (item.dataset.module === 'admin' && (!currentUser || !currentUser.is_admin)) return;
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     document.querySelectorAll('.module').forEach(m => m.classList.add('hidden'));
     item.classList.add('active');
@@ -2583,6 +2584,7 @@ function adminInitModulesGrid() {
 }
 
 async function adminLoad() {
+  if (!currentUser || !currentUser.is_admin) return;
   const res = await apiFetch('/api/auth/users');
   if (!res || !res.ok) return;
   adminUsersCache = await res.json();
