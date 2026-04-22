@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analitika</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen" class="login-wrap">
+  <div class="login-box">
+    <h1>Analitika</h1>
+    <p class="login-sub">Įmonės finansų analizės sistema</p>
+    <form id="login-form">
+      <input type="text" id="username" placeholder="Vartotojo vardas" required />
+      <input type="password" id="password" placeholder="Slaptažodis" required />
+      <button type="submit">Prisijungti</button>
+      <div id="login-error" class="error-msg hidden"></div>
+    </form>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <span class="logo">📊 Analitika</span>
+    </div>
+    <div class="sidebar-user" id="sidebar-user-btn" onclick="profileOpenModal()" title="Keisti slaptažodį">
+      <span class="sidebar-user-icon">👤</span>
+      <span id="nav-username"></span>
+      <span class="sidebar-user-edit">✏</span>
+    </div>
+    <ul class="nav-menu">
+      <li class="nav-item active" data-module="receivables" id="nav-receivables">
+        💰 Klientų skolos
+      </li>
+      <li class="nav-item disabled" data-module="payables" id="nav-payables">
+        📤 Skolos tiekėjams
+      </li>
+      <li class="nav-item disabled" data-module="sales" id="nav-sales">
+        📈 Pardavimai
+      </li>
+      <li class="nav-item disabled" data-module="purchases" id="nav-purchases">
+        🛒 Pirkimai
+      </li>
+      <li class="nav-item hidden" data-module="admin" id="nav-admin">
+        ⚙ Administravimas
+      </li>
+    </ul>
+    <div class="sidebar-footer">
+      <button id="btn-logout" class="btn-logout">Atsijungti</button>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <!-- RECEIVABLES MODULE -->
+    <div id="module-receivables" class="module">
+      <div class="page-header">
+        <h2>Klientų skolos</h2>
+        <button id="btn-upload" class="btn-primary">⬆ Įkelti Excel</button>
+      </div>
+
+      <!-- Upload panel -->
+      <div id="upload-panel" class="card hidden">
+        <h3>Įkelti naują skolų ataskaitą</h3>
+        <div class="upload-form">
+          <label>Excel failas (Directo reskontro eksportas):
+            <input type="file" id="file-input" accept=".xlsx,.xls" />
+          </label>
+          <label>Ataskaitos data (neprivaloma):
+            <input type="date" id="report-date" />
+          </label>
+          <div class="upload-actions">
+            <button id="btn-do-upload" class="btn-primary">Įkelti ir analizuoti</button>
+            <button id="btn-cancel-upload" class="btn-secondary">Atšaukti</button>
+          </div>
+          <div id="upload-status" class="upload-status hidden"></div>
+        </div>
+      </div>
+
+      <!-- Snapshots list -->
+      <div class="card">
+        <h3>Įkeltos ataskaitos</h3>
+        <div id="snapshots-list" class="snapshots-list">
+          <div class="loading">Kraunama...</div>
+        </div>
+      </div>
+
+      <!-- Snapshot detail -->
+      <div id="snapshot-detail" class="hidden">
+        <div class="card stats-grid" id="stats-cards"></div>
+
+        <div class="card" id="ai-panel">
+          <h3>🤖 AI Analizė</h3>
+          <div id="ai-content" class="ai-content">
+            <div class="loading">AI analizė vykdoma...</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-header">
+            <h3>Pirkėjų sąrašas</h3>
+            <div class="table-filters">
+              <input type="text" id="buyer-search" placeholder="Ieškoti pirkėjo..." />
+              <label class="checkbox-label">
+                <input type="checkbox" id="filter-overdue" /> Tik pradelsti
+              </label>
+              <div class="filter-range">
+                <span class="filter-label">Skola nuo</span>
+                <input type="number" id="filter-balance-min" placeholder="0" min="0" />
+                <span class="filter-label">iki</span>
+                <input type="number" id="filter-balance-max" placeholder="∞" min="0" />
+              </div>
+              <div class="filter-range">
+                <span class="filter-label">Pradelsta nuo</span>
+                <input type="number" id="filter-overdue-min" placeholder="0" min="0" />
+                <span class="filter-label">iki</span>
+                <input type="number" id="filter-overdue-max" placeholder="∞" min="0" />
+              </div>
+              <button id="btn-clear-filters" class="btn-clear">✕ Išvalyti</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="buyers-table">
+              <thead>
+                <tr>
+                  <th>Pirkėjas</th>
+                  <th class="num sortable" id="th-balance" onclick="setSort('balance')">Skola € <span class="sort-icon">↕</span></th>
+                  <th class="num sortable" id="th-overdue" onclick="setSort('overdue_amount')">Pradelsta € <span class="sort-icon">↕</span></th>
+                  <th class="num sortable" id="th-overdue-days" onclick="setSort('max_overdue_days')">Pradelsta d. <span class="sort-icon">↕</span></th>
+                  <th class="num">Statusas</th>
+                </tr>
+              </thead>
+              <tbody id="buyers-tbody"></tbody>
+              <tfoot id="buyers-tfoot"></tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Buyer invoices modal -->
+        <div id="invoices-modal" class="modal hidden">
+          <div class="modal-box">
+            <div class="modal-header">
+              <h3 id="modal-buyer-name"></h3>
+              <button id="modal-close" class="modal-close">✕</button>
+            </div>
+            <div class="table-wrap">
+              <table id="invoices-table">
+                <thead>
+                  <tr>
+                    <th>Sąskaita</th>
+                    <th>Data</th>
+                    <th>Apmok. data</th>
+                    <th class="num">Terminas (d.)</th>
+                    <th class="num">Suma €</th>
+                    <th class="num">Dienos</th>
+                  </tr>
+                </thead>
+                <tbody id="invoices-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAYABLES MODULE -->
+    <div id="module-payables" class="module hidden">
+      <div class="page-header">
+        <h2>Skolos tiekėjams</h2>
+        <button id="btn-upload-p" class="btn-primary">⬆ Įkelti Excel</button>
+      </div>
+
+      <div id="upload-panel-p" class="card hidden">
+        <h3>Įkelti naują tiekėjų skolų ataskaitą</h3>
+        <div class="upload-form">
+          <label>Excel failas (Directo tiekėjų reskontro eksportas):
+            <input type="file" id="file-input-p" accept=".xlsx,.xls" />
+          </label>
+          <label>Ataskaitos data (neprivaloma):
+            <input type="date" id="report-date-p" />
+          </label>
+          <div class="upload-actions">
+            <button id="btn-do-upload-p" class="btn-primary">Įkelti ir analizuoti</button>
+            <button id="btn-cancel-upload-p" class="btn-secondary">Atšaukti</button>
+          </div>
+          <div id="upload-status-p" class="upload-status hidden"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Įkeltos ataskaitos</h3>
+        <div id="snapshots-list-p" class="snapshots-list">
+          <div class="loading">Kraunama...</div>
+        </div>
+      </div>
+
+      <div id="snapshot-detail-p" class="hidden">
+        <div class="card stats-grid" id="stats-cards-p"></div>
+
+        <div class="card" id="ai-panel-p">
+          <h3>🤖 AI Analizė</h3>
+          <div id="ai-content-p" class="ai-content">
+            <div class="loading">AI analizė vykdoma...</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-header">
+            <h3>Tiekėjų sąrašas</h3>
+            <div class="table-filters">
+              <input type="text" id="supplier-search" placeholder="Ieškoti tiekėjo..." />
+              <label class="checkbox-label">
+                <input type="checkbox" id="filter-overdue-p" /> Tik pradelsti
+              </label>
+              <div class="filter-range">
+                <span class="filter-label">Skola nuo</span>
+                <input type="number" id="filter-balance-min-p" placeholder="0" min="0" />
+                <span class="filter-label">iki</span>
+                <input type="number" id="filter-balance-max-p" placeholder="∞" min="0" />
+              </div>
+              <div class="filter-range">
+                <span class="filter-label">Pradelsta nuo</span>
+                <input type="number" id="filter-overdue-min-p" placeholder="0" min="0" />
+                <span class="filter-label">iki</span>
+                <input type="number" id="filter-overdue-max-p" placeholder="∞" min="0" />
+              </div>
+              <button id="btn-clear-filters-p" class="btn-clear">✕ Išvalyti</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="suppliers-table">
+              <thead>
+                <tr>
+                  <th>Tiekėjas</th>
+                  <th class="num sortable" id="th-balance-p" onclick="setSortP('balance')">Skola € <span class="sort-icon">↕</span></th>
+                  <th class="num sortable" id="th-overdue-p" onclick="setSortP('overdue_amount')">Pradelsta € <span class="sort-icon">↕</span></th>
+                  <th class="num sortable" id="th-overdue-days-p" onclick="setSortP('max_overdue_days')">Pradelsta d. <span class="sort-icon">↕</span></th>
+                  <th class="num">Statusas</th>
+                </tr>
+              </thead>
+              <tbody id="suppliers-tbody"></tbody>
+              <tfoot id="suppliers-tfoot"></tfoot>
+            </table>
+          </div>
+        </div>
+
+        <div id="invoices-modal-p" class="modal hidden">
+          <div class="modal-box">
+            <div class="modal-header">
+              <h3 id="modal-supplier-name"></h3>
+              <button id="modal-close-p" class="modal-close">✕</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Sąsk. nr.</th>
+                    <th>Tiekėjo s-f nr.</th>
+                    <th>Data</th>
+                    <th>Apmok. data</th>
+                    <th class="num">Terminas</th>
+                    <th class="num">Suma €</th>
+                    <th class="num">Dienos</th>
+                  </tr>
+                </thead>
+                <tbody id="invoices-tbody-p"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- SALES MODULE -->
+    <div id="module-sales" class="module hidden">
+      <div class="page-header">
+        <h2>Pardavimai</h2>
+        <div class="sales-btn-group">
+          <button id="btn-upload-clients" class="btn-secondary">👥 Pirkėjų sąrašas</button>
+          <button id="btn-upload-sales-m" class="btn-primary">⬆ Įkelti mėnesį</button>
+        </div>
+      </div>
+
+      <!-- Client list upload panel -->
+      <div id="upload-panel-clients" class="card hidden">
+        <h3>Įkelti pirkėjų sąrašą (mr_aru_kliendid)</h3>
+        <div class="upload-form">
+          <label>Excel failas (Directo klientų eksportas):
+            <input type="file" id="file-input-clients" accept=".xlsx,.xls" />
+          </label>
+          <div class="upload-actions">
+            <button id="btn-do-upload-clients" class="btn-primary">Įkelti</button>
+            <button id="btn-cancel-upload-clients" class="btn-secondary">Atšaukti</button>
+          </div>
+          <div id="upload-status-clients" class="upload-status hidden"></div>
+        </div>
+      </div>
+
+      <!-- Monthly sales upload panel -->
+      <div id="upload-panel-sales-m" class="card hidden">
+        <h3>Įkelti mėnesio pardavimus (mr_aru_arved)</h3>
+        <div class="upload-form">
+          <label>Excel failas (Directo pardavimų eksportas):
+            <input type="file" id="file-input-sales-m" accept=".xlsx,.xls" />
+          </label>
+          <div class="sales-month-picker">
+            <label style="display:inline-flex;align-items:center;gap:8px;margin:0">
+              <span class="filter-label">Metai:</span>
+              <input type="number" id="sales-upload-year" value="2026" min="2020" max="2035"
+                style="width:80px;padding:7px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px" />
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:8px;margin:0">
+              <span class="filter-label">Mėnuo:</span>
+              <select id="sales-upload-month"
+                style="padding:7px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                <option value="1">Sausis</option>
+                <option value="2">Vasaris</option>
+                <option value="3">Kovas</option>
+                <option value="4" selected>Balandis</option>
+                <option value="5">Gegužė</option>
+                <option value="6">Birželis</option>
+                <option value="7">Liepa</option>
+                <option value="8">Rugpjūtis</option>
+                <option value="9">Rugsėjis</option>
+                <option value="10">Spalis</option>
+                <option value="11">Lapkritis</option>
+                <option value="12">Gruodis</option>
+              </select>
+            </label>
+          </div>
+          <div class="upload-actions" style="margin-top:12px">
+            <button id="btn-do-upload-sales-m" class="btn-primary">Įkelti ir analizuoti</button>
+            <button id="btn-cancel-upload-sales-m" class="btn-secondary">Atšaukti</button>
+          </div>
+          <div id="upload-status-sales-m" class="upload-status hidden"></div>
+        </div>
+      </div>
+
+      <!-- Active client snapshot info bar -->
+      <div id="sales-clients-bar" class="sales-clients-bar hidden"></div>
+
+      <!-- Month picker dropdown -->
+      <div class="sales-month-bar">
+        <div id="sales-month-picker" class="month-picker-wrap">
+          <div class="month-picker-empty">Nėra įkeltų mėnesių</div>
+        </div>
+      </div>
+
+      <!-- Month detail -->
+      <div id="sales-month-detail" class="hidden">
+        <div class="card stats-grid" id="sales-stats-cards"></div>
+        <div class="sales-teams-grid" id="sales-teams-grid"></div>
+        <div class="card" id="sales-chat-panel" style="display:none">
+          <h3 style="margin-bottom:14px">💬 Klausk AI</h3>
+          <div id="chat-messages" class="chat-messages"></div>
+          <div class="chat-input-row">
+            <input type="text" id="chat-input" class="chat-input"
+              placeholder="Užduokite klausimą apie šio mėnesio pardavimus..." />
+            <button id="chat-send" class="btn-primary chat-send-btn" onclick="sendChatMessage()">Siųsti</button>
+          </div>
+          <div style="margin-top:8px;text-align:right">
+            <button onclick="clearChat()" class="btn-clear">✕ Išvalyti pokalbį</button>
+          </div>
+        </div>
+
+        <div class="card" id="sales-ai-panel">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <h3 style="margin:0">🤖 AI Analizė</h3>
+            <button id="btn-rerun-sales-ai" class="btn-secondary hidden" onclick="rerunSalesAI()" style="font-size:12px;padding:6px 12px">
+              🔄 Generuoti analizę
+            </button>
+          </div>
+          <div id="sales-ai-content" class="ai-content">
+            <div class="loading">AI analizė vykdoma...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Team clients modal -->
+      <div id="sales-team-modal" class="modal hidden">
+        <div class="modal-box modal-box-lg">
+          <div class="modal-header">
+            <h3 id="sales-team-modal-title"></h3>
+            <button id="sales-team-modal-close" class="modal-close">✕</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Pirkėjas</th>
+                  <th>Vadybininkas</th>
+                  <th class="num">Suma €</th>
+                  <th class="num">BP €</th>
+                  <th class="num">Marža %</th>
+                  <th class="num">Sąsk.</th>
+                </tr>
+              </thead>
+              <tbody id="sales-team-clients-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- PURCHASES MODULE -->
+    <div id="module-purchases" class="module hidden">
+
+      <!-- Compact header -->
+      <div class="pur-module-topbar">
+        <div class="pur-topbar-chips" id="pur-topbar-chips">
+          <span class="pur-chip" id="pur-chip-cat">🗂 Klasės: <strong>—</strong></span>
+          <span class="pur-chip" id="pur-chip-wh">📦 Sandėlis: <strong>—</strong></span>
+          <span class="pur-chip" id="pur-chip-sw">📊 Pardavimai: <strong>—</strong></span>
+          <span class="pur-chip" id="pur-chip-cl">🏷 Išpardavimai: <strong>—</strong></span>
+        </div>
+        <button class="btn-primary" onclick="purOpenDataModal()">📂 Duomenų įkėlimas</button>
+      </div>
+
+      <!-- Warehouse snapshot picker + stats -->
+      <div class="pur-snap-bar" id="pur-snap-bar" style="display:none">
+        <div class="pur-snap-info">
+          <span class="pur-snap-label">Sandėlio data:</span>
+          <select id="pur-snap-select" class="pur-snap-select"></select>
+        </div>
+        <div class="pur-snap-stats" id="pur-snap-stats"></div>
+        <button id="btn-pur-analyze" class="btn-primary btn-sm">🤖 Generuoti analizę</button>
+        <button id="btn-pur-delete-snap" class="btn-danger btn-sm" title="Ištrinti šį sandėlio snapshot'ą">🗑 Ištrinti</button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="pur-tabs" id="pur-tabs" style="display:none">
+        <button class="pur-tab active" data-tab="inventory">📦 Sandėlio likučiai</button>
+        <button class="pur-tab" data-tab="illiquid-none">🔴 Visiškai nejuda</button>
+        <button class="pur-tab" data-tab="illiquid-partial">🟡 Dalinai nejuda</button>
+        <button class="pur-tab" data-tab="overstock">📈 Per daug sandėlyje</button>
+        <button class="pur-tab" data-tab="low">⚠ Greitai baigsis</button>
+        <button class="pur-tab" data-tab="ai">🤖 AI analizė</button>
+      </div>
+
+      <!-- TAB: Inventory -->
+      <div class="pur-tab-content active" id="pur-tab-inventory">
+        <div class="pur-filters">
+          <input type="text" id="pur-search" placeholder="Ieškoti pagal kodą ar pavadinimą..." class="pur-search-input" />
+          <select id="pur-cat-filter" class="pur-cat-select"><option value="">Visos klasės</option></select>
+          <select id="pur-manager-filter" class="pur-cat-select"><option value="">Visi vadovai</option></select>
+          <select id="pur-prodcat-filter" class="pur-cat-select"><option value="">Visos kategorijos</option></select>
+          <select id="pur-sort-select" class="pur-sort-select">
+            <option value="value_desc">Didžiausia vertė</option>
+            <option value="value_asc">Mažiausia vertė</option>
+            <option value="weeks_asc">Greičiausiai baigsis</option>
+            <option value="weeks_desc">Ilgiausiai užteks</option>
+            <option value="sold_desc">Daugiausia parduota</option>
+            <option value="name_asc">Pavadinimas A-Z</option>
+          </select>
+          <span id="pur-items-count" class="pur-count-label"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="pur-table" id="pur-inv-table">
+            <thead>
+              <tr>
+                <th class="pur-sortable" data-col="product_code">Kodas <span class="pur-sort-icon"></span></th>
+                <th class="pur-sortable" data-col="product_name">Pavadinimas <span class="pur-sort-icon"></span></th>
+                <th class="pur-sortable" data-col="category_code">Klasė <span class="pur-sort-icon"></span></th>
+                <th class="pur-sortable" data-col="product_group_manager">Vadovas <span class="pur-sort-icon"></span></th>
+                <th class="pur-sortable" data-col="product_category">Kategorija <span class="pur-sort-icon"></span></th>
+                <th class="pur-sortable num" data-col="quantity">Kiekis <span class="pur-sort-icon"></span></th>
+                <th class="pur-sortable num" data-col="qty_delta">Pokytis <span class="pur-sort-icon"></span></th>
+                <th class="pur-sortable num" data-col="unit_cost">Savikaina <span class="pur-sort-icon"></span></th>
+                <th class="pur-sortable num" data-col="total_value">Vertė € <span class="pur-sort-icon"></span></th>
+                <th class="pur-sortable num" data-col="daily_avg">Vid./d. <span class="pur-sort-icon"></span></th>
+                <th class="pur-sortable num" data-col="days_stock">Liko d. <span class="pur-sort-icon"></span></th>
+                <th class="pur-sortable" data-col="is_clearance">Išpardavimas <span class="pur-sort-icon"></span></th>
+                <th>Komentaras</th>
+              </tr>
+            </thead>
+            <tbody id="pur-inv-body"></tbody>
+          </table>
+        </div>
+        <div class="pur-load-more" id="pur-load-more" style="display:none">
+          <button class="btn-secondary" id="btn-pur-more">Rodyti daugiau</button>
+        </div>
+      </div>
+
+      <!-- TAB: Illiquid none -->
+      <div class="pur-tab-content" id="pur-tab-illiquid-none">
+        <div id="pur-illiq-panel-none"></div>
+        <div class="pur-filters" style="margin-bottom:8px;">
+          <select id="pur-none-manager-filter" class="pur-cat-select"><option value="">Visi vadovai</option></select>
+          <select id="pur-none-prodcat-filter" class="pur-cat-select"><option value="">Visos kategorijos</option></select>
+        </div>
+        <div class="table-wrap">
+          <table class="pur-table" id="pur-illiquid-none-table">
+            <thead><tr>
+              <th class="pur-sortable" data-col="product_code">Kodas <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="product_name">Pavadinimas <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="category_code">Klasė <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="product_group_manager">Vadovas <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="product_category">Kategorija <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="is_new">NAUJA <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="quantity">Kiekis <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="qty_delta">Pokytis <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="total_value">Vertė € <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="is_clearance">Išpardavimas <span class="pur-sort-icon"></span></th>
+              <th>Komentaras</th>
+            </tr></thead>
+            <tbody id="pur-illiquid-none-body"></tbody>
+          </table>
+        </div>
+        <div class="pur-cat-summary" id="pur-illiquid-none-cats"></div>
+        <div class="pur-logic-note">
+          <strong>Logika — kas patenka į šį sąrašą:</strong>
+          <ul>
+            <li>Prekė sandėlyje yra, tačiau <strong>per paskutinius 12 mėnesių nebuvo parduota nė vienas vienetas</strong> (pardavimai = 0).</li>
+            <li>Naujai įvestos prekės (atsiradusios tik šią savaitę ir dar niekad neparduotos) <strong>neįtraukiamos</strong> — jos žymimos <span style="color:#dc2626;font-weight:700">● NAUJA</span>, jei vis dėlto patenka.</li>
+            <li>Stulpelis <strong>Pokytis</strong>: <span style="color:#16a34a">▼ žalia</span> — kiekis sumažėjo (parduota arba nurašyta), <span style="color:#dc2626">▲ raudona</span> — kiekis padidėjo (papildyta).</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- TAB: Illiquid partial -->
+      <div class="pur-tab-content" id="pur-tab-illiquid-partial">
+        <div id="pur-illiq-panel-partial"></div>
+        <div class="pur-filters" style="margin-bottom:8px;">
+          <select id="pur-partial-manager-filter" class="pur-cat-select"><option value="">Visi vadovai</option></select>
+          <select id="pur-partial-prodcat-filter" class="pur-cat-select"><option value="">Visos kategorijos</option></select>
+        </div>
+        <div class="table-wrap">
+          <table class="pur-table" id="pur-illiquid-partial-table">
+            <thead><tr>
+              <th class="pur-sortable" data-col="product_code">Kodas <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="product_name">Pavadinimas <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="category_code">Klasė <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="product_group_manager">Vadovas <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="product_category">Kategorija <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="is_new">NAUJA <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="quantity">Kiekis <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="qty_delta">Pokytis <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="total_value">Vertė € <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="sales_12m">Parduota 12m <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="sold_pct">% likučio <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="is_clearance">Išpardavimas <span class="pur-sort-icon"></span></th>
+              <th>Komentaras</th>
+            </tr></thead>
+            <tbody id="pur-illiquid-partial-body"></tbody>
+          </table>
+        </div>
+        <div class="pur-cat-summary" id="pur-illiquid-partial-cats"></div>
+        <div class="pur-logic-note">
+          <strong>Logika — kas patenka į šį sąrašą:</strong>
+          <ul>
+            <li>Prekė per paskutinius 12 mėnesių <strong>buvo parduota</strong>, tačiau parduotas kiekis sudaro <strong>20 % ar mažiau</strong> dabartinio sandėlio likučio.</li>
+            <li>Prekės, kurių pardavimai = 0, šiame sąraše <strong>neatsiranda</strong> — jos rodomos skiltyje „Visiškai nejuda".</li>
+            <li>Naujai įvestos prekės žymimos <span style="color:#dc2626;font-weight:700">● NAUJA</span>.</li>
+            <li>Stulpelis <strong>Pokytis</strong>: <span style="color:#16a34a">▼ žalia</span> — kiekis sumažėjo (parduota), <span style="color:#dc2626">▲ raudona</span> — kiekis padidėjo (papildyta).</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- TAB: Overstock -->
+      <div class="pur-tab-content" id="pur-tab-overstock">
+        <div class="pur-tab-header" id="pur-overstock-header"></div>
+        <div class="pur-filters" style="margin-bottom:8px;">
+          <select id="pur-over-manager-filter" class="pur-cat-select"><option value="">Visi vadovai</option></select>
+          <select id="pur-over-prodcat-filter" class="pur-cat-select"><option value="">Visos kategorijos</option></select>
+        </div>
+        <div class="table-wrap">
+          <table class="pur-table" id="pur-overstock-table">
+            <thead><tr>
+              <th class="pur-sortable" data-col="product_code">Kodas <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="product_name">Pavadinimas <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="category_code">Klasė <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="product_group_manager">Vadovas <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="product_category">Kategorija <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="is_new">NAUJA <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="quantity">Kiekis <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="qty_delta">Pokytis <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="total_value">Vertė € <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="daily_avg">Vid./d. <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="days_stock">Liko d. <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="is_clearance">Išpardavimas <span class="pur-sort-icon"></span></th>
+            </tr></thead>
+            <tbody id="pur-overstock-body"></tbody>
+          </table>
+        </div>
+        <div class="pur-logic-note">
+          <strong>Logika — kas patenka į šį sąrašą:</strong>
+          <ul>
+            <li>Prekė turi <strong>daugiau nei 84 dienų</strong> (12 savaičių) atsargų pagal vidutinį dienos pardavimų tempą.</li>
+            <li>Skaičiavimas: <strong>Liko d. = sandėlio kiekis ÷ vidutinis dienos pardavimas</strong>. Jei pardavimai = 0 arba atsargos „beribės", prekė neįtraukiama.</li>
+            <li>Stulpelis <strong>Pokytis</strong>: <span style="color:#16a34a">▲ žalia</span> — kiekis padidėjo (papildyta laiku), <span style="color:#dc2626">▼ raudona</span> — kiekis sumažėjo.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- TAB: Low stock -->
+      <div class="pur-tab-content" id="pur-tab-low">
+        <div class="pur-tab-header" id="pur-low-header"></div>
+        <div class="pur-filters" style="margin-bottom:8px;">
+          <select id="pur-low-manager-filter" class="pur-cat-select"><option value="">Visi vadovai</option></select>
+          <select id="pur-low-prodcat-filter" class="pur-cat-select"><option value="">Visos kategorijos</option></select>
+        </div>
+        <div class="table-wrap">
+          <table class="pur-table" id="pur-low-table">
+            <thead><tr>
+              <th class="pur-sortable" data-col="product_code">Kodas <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="product_name">Pavadinimas <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="category_code">Klasė <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="product_group_manager">Vadovas <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable" data-col="product_category">Kategorija <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="quantity">Kiekis <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="total_value">Vertė € <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="daily_avg">Vid./d. <span class="pur-sort-icon"></span></th>
+              <th class="pur-sortable num" data-col="days_stock">Liko d. <span class="pur-sort-icon"></span></th>
+            </tr></thead>
+            <tbody id="pur-low-body"></tbody>
+          </table>
+        </div>
+        <div class="pur-logic-note">
+          <strong>Logika — kas patenka į šį sąrašą:</strong>
+          <ul>
+            <li>Prekė turi <strong>mažiau nei 14 dienų</strong> (2 savaitės) atsargų pagal vidutinį dienos pardavimų tempą.</li>
+            <li>Skaičiavimas: <strong>Liko d. = sandėlio kiekis ÷ vidutinis dienos pardavimas</strong>.</li>
+            <li>Šios prekės reikalauja greito papildymo — kyla atsargų trūkumo rizika.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- TAB: AI analysis -->
+      <div class="pur-tab-content" id="pur-tab-ai">
+        <div id="pur-ai-content">
+          <div class="pur-ai-placeholder">Paspauskite „🤖 Generuoti analizę" kad pradėtumėte.</div>
+        </div>
+      </div>
+
+      <!-- TAB: Sales weeks -->
+      <div class="pur-tab-content" id="pur-tab-weeks">
+        <div class="pur-weeks-list" id="pur-weeks-list"></div>
+      </div>
+
+    </div><!-- /module-purchases -->
+
+    <!-- ADMIN MODULE -->
+    <div id="module-admin" class="module hidden">
+      <div class="page-header">
+        <h2>⚙ Administravimas</h2>
+        <button class="btn-primary" onclick="adminOpenCreate()">+ Naujas vartotojas</button>
+      </div>
+
+      <div class="card">
+        <h3>Vartotojai</h3>
+        <div class="table-wrap">
+          <table id="admin-users-table">
+            <thead>
+              <tr>
+                <th>Vartotojas</th>
+                <th>Pilnas vardas</th>
+                <th>Moduliai</th>
+                <th>Rolė</th>
+                <th>Statusas</th>
+                <th>Sukurta</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="admin-users-tbody">
+              <tr><td colspan="7" class="loading">Kraunama...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+    <!-- USER CREATE / EDIT MODAL -->
+    <div id="admin-user-modal" class="modal hidden" onclick="adminModalOverlayClick(event)">
+      <div class="modal-box modal-box-sm">
+        <div class="modal-header">
+          <h3 id="admin-modal-title">Naujas vartotojas</h3>
+          <button class="modal-close" onclick="adminCloseModal()">✕</button>
+        </div>
+        <div class="admin-modal-body">
+          <div class="admin-form-group">
+            <label class="admin-form-label">Vartotojo vardas *</label>
+            <input type="text" id="admin-field-username" class="admin-form-input" placeholder="pvz. jonas" autocomplete="off" />
+          </div>
+          <div class="admin-form-group">
+            <label class="admin-form-label">Pilnas vardas</label>
+            <input type="text" id="admin-field-fullname" class="admin-form-input" placeholder="pvz. Jonas Jonaitis" autocomplete="off" />
+          </div>
+          <div class="admin-form-group">
+            <label class="admin-form-label" id="admin-pwd-label">Slaptažodis *</label>
+            <input type="password" id="admin-field-password" class="admin-form-input" placeholder="Slaptažodis" autocomplete="new-password" />
+          </div>
+          <div class="admin-form-group">
+            <label class="admin-form-label">Prieiga prie modulių</label>
+            <div class="admin-modules-grid" id="admin-modules-grid"></div>
+          </div>
+          <div class="admin-form-row">
+            <label class="checkbox-label">
+              <input type="checkbox" id="admin-field-is-admin" /> Administratorius
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="admin-field-is-active" checked /> Aktyvus
+            </label>
+          </div>
+          <div id="admin-error" class="admin-form-error"></div>
+        </div>
+        <div class="admin-modal-footer">
+          <button class="btn-primary" onclick="adminSaveUser()">Išsaugoti</button>
+          <button class="btn-secondary" onclick="adminCloseModal()">Atšaukti</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILE / PASSWORD CHANGE MODAL -->
+    <div id="profile-modal" class="modal hidden" onclick="profileModalOverlayClick(event)">
+      <div class="modal-box modal-box-sm">
+        <div class="modal-header">
+          <h3>Mano profilis</h3>
+          <button class="modal-close" onclick="profileCloseModal()">✕</button>
+        </div>
+        <div class="admin-modal-body">
+          <p id="profile-current-user" style="font-size:13px;color:var(--text-muted);margin-bottom:16px;"></p>
+          <div class="admin-form-group">
+            <label class="admin-form-label">Dabartinis slaptažodis</label>
+            <input type="password" id="profile-old-password" class="admin-form-input" placeholder="Dabartinis slaptažodis" />
+          </div>
+          <div class="admin-form-group">
+            <label class="admin-form-label">Naujas slaptažodis</label>
+            <input type="password" id="profile-new-password" class="admin-form-input" placeholder="Naujas slaptažodis (min. 4 simboliai)" />
+          </div>
+          <div class="admin-form-group">
+            <label class="admin-form-label">Pakartoti naują slaptažodį</label>
+            <input type="password" id="profile-confirm-password" class="admin-form-input" placeholder="Pakartoti naują slaptažodį" />
+          </div>
+          <div id="profile-error" class="admin-form-error"></div>
+          <div id="profile-success" class="admin-form-success"></div>
+        </div>
+        <div class="admin-modal-footer">
+          <button class="btn-primary" onclick="profileSavePassword()">Keisti slaptažodį</button>
+          <button class="btn-secondary" onclick="profileCloseModal()">Uždaryti</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DATA UPLOAD MODAL -->
+    <div id="pur-data-modal" class="modal hidden" onclick="purDataModalOverlay(event)">
+      <div class="modal-box pur-data-modal-box">
+        <div class="modal-header">
+          <h3>📂 Duomenų įkėlimas</h3>
+          <button class="modal-close" onclick="purCloseDataModal()">✕</button>
+        </div>
+        <div class="pur-data-grid">
+
+          <!-- Prekių klasės -->
+          <div class="pur-data-card">
+            <div class="pur-data-card-head">
+              <span class="pur-data-card-icon">🗂</span>
+              <div>
+                <div class="pur-data-card-title">Prekių klasės</div>
+                <div class="pur-data-card-sub">Kategorijų hierarchija</div>
+              </div>
+            </div>
+            <div class="pur-data-card-status" id="pur-cat-status">Nenurodytos</div>
+            <label class="pur-data-upload-btn">
+              ⬆ Įkelti klasių struktūrą
+              <input type="file" id="pur-cat-file" accept=".xlsx,.xls" style="display:none">
+            </label>
+          </div>
+
+          <!-- Išpardavimų sąrašas -->
+          <div class="pur-data-card">
+            <div class="pur-data-card-head">
+              <span class="pur-data-card-icon">🏷</span>
+              <div>
+                <div class="pur-data-card-title">Išpardavimų sąrašas</div>
+                <div class="pur-data-card-sub">Prekių su nuolaida kodai (.xlsb)</div>
+              </div>
+            </div>
+            <div class="pur-data-card-status" id="pur-cl-status">Neįkeltas</div>
+            <label class="pur-data-upload-btn">
+              ⬆ Įkelti sąrašą
+              <input type="file" id="pur-cl-file" accept=".xlsb,.xlsx,.xls" style="display:none">
+            </label>
+          </div>
+
+          <!-- Sandėlio kiekiai -->
+          <div class="pur-data-card">
+            <div class="pur-data-card-head">
+              <span class="pur-data-card-icon">📦</span>
+              <div>
+                <div class="pur-data-card-title">Sandėlio kiekiai</div>
+                <div class="pur-data-card-sub">Savaitinis sandėlio snapshot'as</div>
+              </div>
+            </div>
+            <div class="pur-data-card-status" id="pur-wh-status">Neįkeltas</div>
+            <div class="pur-data-instruction">
+              <div class="pur-data-instruction-title">Directo ataskaita: Sandėlio kiekis</div>
+              <ul class="pur-data-instruction-list">
+                <li>Sandėlis: <strong>Pagrindinis</strong></li>
+                <li>Varnelė: <strong>Prekės klasės</strong></li>
+                <li>Duomenų laukas: <strong>Produktų grupės vadovas</strong></li>
+                <li>Duomenų laukas: <strong>Prekės kategorija</strong></li>
+              </ul>
+            </div>
+            <div class="pur-data-row">
+              <label class="pur-data-field-label">Data:</label>
+              <input type="date" id="pur-wh-date" class="pur-data-date-input" />
+            </div>
+            <label class="pur-data-upload-btn">
+              ⬆ Įkelti sandėlį
+              <input type="file" id="pur-wh-file" accept=".xlsx,.xls" style="display:none">
+            </label>
+          </div>
+
+          <!-- Savaitės pardavimai -->
+          <div class="pur-data-card">
+            <div class="pur-data-card-head">
+              <span class="pur-data-card-icon">📊</span>
+              <div>
+                <div class="pur-data-card-title">Pardavimai</div>
+                <div class="pur-data-card-sub">
+                  Savaitinis arba metinis failas
+                  <button class="pur-data-weeks-btn" onclick="purSwitchToWeeks();purCloseDataModal()">📅 Visi periodai</button>
+                </div>
+              </div>
+            </div>
+            <div class="pur-data-card-status" id="pur-sw-status">Neįkelta</div>
+            <div class="pur-data-section-label">Savaitinis (datos rankiniu būdu):</div>
+            <div class="pur-data-row">
+              <input type="date" id="pur-sw-from" class="pur-data-date-input" placeholder="Nuo" />
+              <span style="color:#94a3b8;font-size:13px">–</span>
+              <input type="date" id="pur-sw-to" class="pur-data-date-input" placeholder="Iki" />
+            </div>
+            <label class="pur-data-upload-btn" style="margin-bottom:12px">
+              ⬆ Įkelti savaitę
+              <input type="file" id="pur-sw-file" accept=".xlsx,.xls" style="display:none">
+            </label>
+            <div class="pur-data-section-label" style="border-top:1px solid var(--border);padding-top:10px;margin-top:2px">Metinis failas (visi mėnesiai):</div>
+            <div class="pur-data-row">
+              <label class="pur-data-field-label">Metai:</label>
+              <input type="number" id="pur-annual-year" class="pur-data-date-input" style="width:80px" value="2025" min="2020" max="2030" />
+              <span id="pur-annual-status" style="font-size:12px;color:var(--text-muted)"></span>
+            </div>
+            <label class="pur-data-upload-btn">
+              ⬆ Įkelti metinius pardavimus
+              <input type="file" id="pur-annual-file" accept=".xlsx,.xls" style="display:none">
+            </label>
+            <div id="pur-modal-weeks-section" style="display:none; border-top:1px solid var(--border); padding-top:10px; margin-top:4px;">
+              <div class="pur-data-section-label" style="margin-bottom:6px">Įkelti periodai:</div>
+              <div id="pur-weeks-modal-list" style="max-height:130px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- PRODUCT COMMENT MODAL -->
+    <div id="pur-comment-modal" class="modal hidden" onclick="purCommentModalOverlayClick(event)">
+      <div class="modal-box pur-comment-modal-box">
+        <div class="modal-header">
+          <h3 id="pur-comment-modal-title">Komentarai</h3>
+          <button class="modal-close" onclick="purCloseCommentModal()">✕</button>
+        </div>
+        <div class="pur-comment-history" id="pur-comment-history"></div>
+        <div class="pur-comment-compose">
+          <div class="pur-comment-compose-label">Naujas komentaras</div>
+          <div class="pur-comment-compose-row">
+            <textarea id="pur-comment-textarea" placeholder="Rašykite komentarą… (Enter — siųsti, Shift+Enter — nauja eilutė)"></textarea>
+            <button class="pur-comment-send-btn" onclick="purSaveComment()">Siųsti</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
