@@ -92,3 +92,7 @@ if os.path.exists(FRONTEND_DIR):
     @app.get("/")
     def serve_index():
         return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+
+    @app.get("/robots.txt", include_in_schema=False)
+    def robots_txt():
+        return FileResponse(os.path.join(FRONTEND_DIR, "robots.txt"), media_type="text/plain")
