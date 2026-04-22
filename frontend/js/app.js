@@ -73,21 +73,33 @@ function showApp() {
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('nav-username').textContent = currentUser.full_name || currentUser.username;
 
-  // Enable modules based on permissions
+  // Enable only permitted modules
   const mods = currentUser.modules;
   if (mods.receivables) document.getElementById('nav-receivables').classList.remove('disabled');
   if (mods.payables)    document.getElementById('nav-payables').classList.remove('disabled');
   if (mods.sales)       document.getElementById('nav-sales').classList.remove('disabled');
   if (mods.purchases)   document.getElementById('nav-purchases').classList.remove('disabled');
 
-  // Show admin nav for admins
+  // Show admin nav only for admins
   if (currentUser.is_admin) {
     const navAdmin = document.getElementById('nav-admin');
     navAdmin.classList.remove('hidden');
     navAdmin.classList.remove('disabled');
   }
 
-  loadSnapshots();
+  // Activate first permitted module
+  const order = ['receivables', 'payables', 'sales', 'purchases', 'admin'];
+  const first = order.find(m => {
+    if (m === 'admin') return currentUser.is_admin;
+    return mods[m];
+  });
+  if (first) {
+    document.querySelectorAll('.module').forEach(m => m.classList.add('hidden'));
+    document.getElementById(`nav-${first}`).classList.add('active');
+    document.getElementById(`module-${first}`).classList.remove('hidden');
+  }
+
+  if (mods.receivables) loadSnapshots();
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
