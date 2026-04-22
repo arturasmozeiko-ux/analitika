@@ -112,8 +112,8 @@ def change_own_password(
 ):
     if not verify_password(data.old_password, current_user.password_hash):
         raise HTTPException(status_code=400, detail="Dabartinis slaptažodis neteisingas")
-    if len(data.new_password) < 4:
-        raise HTTPException(status_code=400, detail="Slaptažodis per trumpas (min. 4 simboliai)")
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Slaptažodis per trumpas (min. 8 simboliai)")
     current_user.password_hash = hash_password(data.new_password)
     db.commit()
     return {"ok": True}
@@ -129,8 +129,8 @@ def list_users(db: Session = Depends(get_db)):
 def create_user(data: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == data.username).first():
         raise HTTPException(status_code=400, detail="Vartotojas jau egzistuoja")
-    if len(data.password) < 4:
-        raise HTTPException(status_code=400, detail="Slaptažodis per trumpas (min. 4 simboliai)")
+    if len(data.password) < 8:
+        raise HTTPException(status_code=400, detail="Slaptažodis per trumpas (min. 8 simboliai)")
     user = User(
         username=data.username,
         password_hash=hash_password(data.password),

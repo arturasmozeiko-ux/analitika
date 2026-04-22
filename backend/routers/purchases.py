@@ -332,7 +332,9 @@ async def upload_categories(
     current_user: User = Depends(require_purchases),
     db: Session = Depends(get_db),
 ):
-    path = os.path.join(UPLOAD_DIR, f"cat_{file.filename}")
+    import uuid
+    ext = os.path.splitext(file.filename)[1].lower()
+    path = os.path.join(UPLOAD_DIR, f"cat_{uuid.uuid4()}{ext}")
     with open(path, "wb") as f:
         f.write(await file.read())
 
@@ -373,7 +375,9 @@ async def upload_warehouse(
     except ValueError:
         raise HTTPException(status_code=400, detail="Neteisinga data (formatas: YYYY-MM-DD)")
 
-    path = os.path.join(UPLOAD_DIR, f"wh_{file.filename}")
+    import uuid
+    ext = os.path.splitext(file.filename)[1].lower()
+    path = os.path.join(UPLOAD_DIR, f"wh_{uuid.uuid4()}{ext}")
     with open(path, "wb") as f:
         f.write(await file.read())
 
@@ -757,7 +761,9 @@ async def upload_sales_week(
     except ValueError:
         raise HTTPException(status_code=400, detail="Neteisinga data (formatas: YYYY-MM-DD)")
 
-    path = os.path.join(UPLOAD_DIR, f"sw_{file.filename}")
+    import uuid
+    ext = os.path.splitext(file.filename)[1].lower()
+    path = os.path.join(UPLOAD_DIR, f"sw_{uuid.uuid4()}{ext}")
     with open(path, "wb") as f:
         f.write(await file.read())
 
@@ -818,7 +824,9 @@ async def upload_annual_sales(
     db: Session = Depends(get_db),
 ):
     """Įkelia metinę pardavimų statistiką — visi mėnesiai iš vieno failo."""
-    path = os.path.join(UPLOAD_DIR, f"annual_{year}_{file.filename}")
+    import uuid
+    ext = os.path.splitext(file.filename)[1].lower()
+    path = os.path.join(UPLOAD_DIR, f"annual_{year}_{uuid.uuid4()}{ext}")
     with open(path, "wb") as f:
         f.write(await file.read())
 

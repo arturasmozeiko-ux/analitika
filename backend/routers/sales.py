@@ -257,7 +257,9 @@ async def upload_clients(
     if not file.filename.endswith((".xlsx", ".xls")):
         raise HTTPException(status_code=400, detail="Tik Excel failai")
 
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    import uuid
+    ext = os.path.splitext(file.filename)[1].lower()
+    file_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4()}{ext}")
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
@@ -320,7 +322,9 @@ async def upload_sales_month(
         db.delete(existing)
         db.commit()
 
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    import uuid
+    ext = os.path.splitext(file.filename)[1].lower()
+    file_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4()}{ext}")
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 

@@ -17,12 +17,18 @@ from backend.models.user import User
 
 app = FastAPI(title="Analitika", version="1.0.0")
 
+ALLOWED_ORIGINS = [
+    "https://analitika.mgrupe.lt",
+    "http://localhost:8004",
+    "http://127.0.0.1:8004",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Create tables
