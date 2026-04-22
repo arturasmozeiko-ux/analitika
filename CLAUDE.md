@@ -7,12 +7,44 @@ Tai vienintelis būdas išlaikyti žinias tarp sesijų.
 
 ---
 
+## Deploy workflow — PRIVALOMA po kiekvieno pakeitimo
+
+**Kai šiame susirašinėjime atliekami kodo pakeitimai — Claude PRIVALO automatiškai:**
+
+1. Sukurti git commit ir push į GitHub:
+```bash
+cd /Users/arturas/Documents/analitika
+git add .
+git commit -m "Trumpas pakeitimo aprašymas"
+git push
+```
+
+2. Atnaujinti serverį:
+```bash
+ssh root@uzpm.l.dedikuoti.lt "cd /opt/analitika && git pull && systemctl restart analitika"
+```
+
+**Serverio duomenys:**
+- Host: `uzpm.l.dedikuoti.lt` (IP: 62.77.152.172)
+- Aplankas: `/opt/analitika`
+- Servisas: `analitika.service`
+- Portas: `8004`
+- Domain: `analitika.mgrupe.lt`
+- GitHub: `https://github.com/arturasmozeiko-ux/analitika.git`
+
+**Išimtys — NEKELIA į serverį automatiškai:**
+- Jei pakeitimas tik lokalus testavimui
+- Jei vartotojas aiškiai sako „dar nekelt"
+- Jei keičiamas tik CLAUDE.md
+
+---
+
 ## Projekto struktūra
 
 ```
 analitika/
 ├── CLAUDE.md                  ← šis failas (instrukcijos Claude'ui)
-├── run.py                     ← paleidimas: uvicorn ant 0.0.0.0:8003
+├── run.py                     ← paleidimas: uvicorn ant 0.0.0.0:8004
 ├── backend/
 │   ├── main.py                ← FastAPI app, routerių registracija, default admin kūrimas
 │   ├── auth.py                ← JWT, bcrypt, require_*() dependency funkcijos
