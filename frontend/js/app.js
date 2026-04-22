@@ -1394,11 +1394,9 @@ let purPartialSortCol = 'total_value'; let purPartialSortDir = 'desc';
 
 // Overstock / Low stock sort state
 let purOverstockItems = [];
-let purLowItems       = [];
 
 // "Tik NAUJA" filtrai
 let purOverSortCol = 'total_value'; let purOverSortDir = 'desc';
-let purLowSortCol  = 'days_stock';  let purLowSortDir  = 'asc';
 
 // Illiquid history (all snapshots)
 let purIlliquidHistory = [];
@@ -1718,7 +1716,7 @@ async function purLoadFilterOptions(snapId) {
   fillSelect('pur-manager-filter',  data.managers,   'Visi vadovai');
   fillSelect('pur-prodcat-filter',  data.categories, 'Visos kategorijos');
   // Special tabs
-  ['none','partial','over','low'].forEach(suffix => {
+  ['none','partial','over'].forEach(suffix => {
     fillSelect(`pur-${suffix}-manager-filter`, data.managers,   'Visi vadovai');
     fillSelect(`pur-${suffix}-prodcat-filter`, data.categories, 'Visos kategorijos');
   });
@@ -2153,7 +2151,6 @@ function purRenderSpecialTabs(items, totalDays) {
   purIlliquidNoneItems    = items.filter(i => i.illiquid_type === 'none');
   purIlliquidPartialItems = items.filter(i => i.illiquid_type === 'partial');
   const overstock = items.filter(i => i.illiquid_type === null && i.days_stock !== null && i.days_stock > 84 && i.days_stock < 999);
-  const low       = items.filter(i => i.illiquid_type === null && i.days_stock !== null && i.days_stock < 14);
 
   const overstockVal = overstock.reduce((s, i) => s + i.total_value, 0);
 
@@ -2180,13 +2177,6 @@ function purRenderSpecialTabs(items, totalDays) {
   purOverSortCol = 'total_value'; purOverSortDir = 'desc';
   purRenderOverstock();
 
-  // Low stock
-  purLowItems = low;
-  document.getElementById('pur-low-header').innerHTML = `
-    <span><strong>${low.length}</strong> prekių, kurių liks mažiau nei 14 dienų</span>
-  `;
-  purLowSortCol = 'days_stock'; purLowSortDir = 'asc';
-  purRenderLow();
 }
 
 function purRenderOverstock() {
@@ -2214,27 +2204,6 @@ function purRenderOverstock() {
     </tr>`).join('');
 }
 
-function purRenderLow() {
-  const manager = document.getElementById('pur-low-manager-filter')?.value || '';
-  const prodcat = document.getElementById('pur-low-prodcat-filter')?.value || '';
-  let items = purLowItems;
-  if (manager) items = items.filter(i => i.product_group_manager === manager);
-  if (prodcat) items = items.filter(i => i.product_category === prodcat);
-  const sorted = purSortItems(items, purLowSortCol, purLowSortDir);
-  purUpdateSortIcons('pur-low-table', purLowSortCol, purLowSortDir);
-  document.getElementById('pur-low-body').innerHTML = sorted.slice(0, 200).map(i => `
-    <tr>
-      <td style="font-size:12px;color:var(--text-muted)">${escHtml(i.product_code)}</td>
-      <td>${escHtml(i.product_name)}</td>
-      <td style="font-size:12px">${escHtml(i.category_code)}</td>
-      <td style="font-size:12px">${escHtml(i.product_group_manager || '—')}</td>
-      <td style="font-size:12px">${escHtml(i.product_category || '—')}</td>
-      <td class="num">${i.quantity.toLocaleString('lt',{maximumFractionDigits:2})}</td>
-      <td class="num"><strong>${fmt(i.total_value)}</strong></td>
-      <td class="num">${i.daily_avg > 0 ? i.daily_avg.toFixed(3) : '—'}</td>
-      <td class="num">${purWeeksStockBadge(i.days_stock)}</td>
-    </tr>`).join('');
-}
 
 // ── Filters ────────────────────────────────────────────
 
@@ -2249,10 +2218,10 @@ function purSetupFilters() {
   document.getElementById('pur-prodcat-filter').addEventListener('change', () => purLoadInventory());
 
   // Special tab filters (client-side re-render)
-  ['none','partial','over','low'].forEach(suffix => {
+  ['none','partial','over'].forEach(suffix => {
     const mgr = document.getElementById(`pur-${suffix}-manager-filter`);
     const cat = document.getElementById(`pur-${suffix}-prodcat-filter`);
-    const renderFn = { none: purRenderNone, partial: purRenderPartial, over: purRenderOverstock, low: purRenderLow }[suffix];
+    const renderFn = { none: purRenderNone, partial: purRenderPartial, over: purRenderOverstock }[suffix];
     if (mgr) mgr.addEventListener('change', renderFn);
     if (cat) cat.addEventListener('change', renderFn);
   });
@@ -2331,19 +2300,6 @@ function purSetupFilters() {
     purRenderOverstock();
   });
 
-  // Column header click sorting — Greitai baigsis
-  document.getElementById('pur-low-table').addEventListener('click', e => {
-    const th = e.target.closest('.pur-sortable');
-    if (!th) return;
-    const col = th.dataset.col;
-    if (purLowSortCol === col) {
-      purLowSortDir = purLowSortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-      purLowSortCol = col;
-      purLowSortDir = ['product_code','product_name','category_code'].includes(col) ? 'asc' : 'desc';
-    }
-    purRenderLow();
-  });
 
   // Comment compose textarea: Enter = send, Shift+Enter = newline
   document.getElementById('pur-comment-textarea').addEventListener('keydown', e => {

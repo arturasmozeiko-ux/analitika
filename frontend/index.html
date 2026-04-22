@@ -439,7 +439,6 @@
         <button class="pur-tab" data-tab="illiquid-none">🔴 Visiškai nejuda</button>
         <button class="pur-tab" data-tab="illiquid-partial">🟡 Dalinai nejuda</button>
         <button class="pur-tab" data-tab="overstock">📈 Per daug sandėlyje</button>
-        <button class="pur-tab" data-tab="low">⚠ Greitai baigsis</button>
         <button class="pur-tab" data-tab="ai">🤖 AI analizė</button>
       </div>
 
@@ -598,38 +597,6 @@
         </div>
       </div>
 
-      <!-- TAB: Low stock -->
-      <div class="pur-tab-content" id="pur-tab-low">
-        <div class="pur-tab-header" id="pur-low-header"></div>
-        <div class="pur-filters" style="margin-bottom:8px;">
-          <select id="pur-low-manager-filter" class="pur-cat-select"><option value="">Visi vadovai</option></select>
-          <select id="pur-low-prodcat-filter" class="pur-cat-select"><option value="">Visos kategorijos</option></select>
-        </div>
-        <div class="table-wrap">
-          <table class="pur-table" id="pur-low-table">
-            <thead><tr>
-              <th class="pur-sortable" data-col="product_code">Kodas <span class="pur-sort-icon"></span></th>
-              <th class="pur-sortable" data-col="product_name">Pavadinimas <span class="pur-sort-icon"></span></th>
-              <th class="pur-sortable" data-col="category_code">Klasė <span class="pur-sort-icon"></span></th>
-              <th class="pur-sortable" data-col="product_group_manager">Vadovas <span class="pur-sort-icon"></span></th>
-              <th class="pur-sortable" data-col="product_category">Kategorija <span class="pur-sort-icon"></span></th>
-              <th class="pur-sortable num" data-col="quantity">Kiekis <span class="pur-sort-icon"></span></th>
-              <th class="pur-sortable num" data-col="total_value">Vertė € <span class="pur-sort-icon"></span></th>
-              <th class="pur-sortable num" data-col="daily_avg">Vid./d. <span class="pur-sort-icon"></span></th>
-              <th class="pur-sortable num" data-col="days_stock">Liko d. <span class="pur-sort-icon"></span></th>
-            </tr></thead>
-            <tbody id="pur-low-body"></tbody>
-          </table>
-        </div>
-        <div class="pur-logic-note">
-          <strong>Logika — kas patenka į šį sąrašą:</strong>
-          <ul>
-            <li>Prekė turi <strong>mažiau nei 14 dienų</strong> (2 savaitės) atsargų pagal vidutinį dienos pardavimų tempą.</li>
-            <li>Skaičiavimas: <strong>Liko d. = sandėlio kiekis ÷ vidutinis dienos pardavimas</strong>.</li>
-            <li>Šios prekės reikalauja greito papildymo — kyla atsargų trūkumo rizika.</li>
-          </ul>
-        </div>
-      </div>
 
       <!-- TAB: AI analysis -->
       <div class="pur-tab-content" id="pur-tab-ai">
