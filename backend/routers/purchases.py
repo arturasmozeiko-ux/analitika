@@ -568,19 +568,32 @@ def get_product_illiquid_history(
     snap_ids_with_item = sorted(all_items.keys())
     first_snap_id = snap_ids_with_item[0] if snap_ids_with_item else None
 
+    # Šios prekės pirmo pasirodymo data sandėlyje
+    first_snap_date = next(
+        (s.snap_date for s in snaps if s.id == first_snap_id), None
+    )
+    # Pirmasis snapshot'as visoje sistemoje = bazinis inventorius
+    db_first_snap_date = snaps[0].snap_date if snaps else None
+
     result = []
     for snap in snaps:
         wi = all_items.get(snap.id)
         if not wi or wi.quantity <= 0:
             continue
 
-        # Ar prekė "jauna" — sandėlyje mažiau nei 12 mėn.?
-        # Pirmo pasirodymo data = pirmojo snapshot'o, kuriame ji buvo, data
-        first_snap_date = next(
-            (s.snap_date for s in snaps if s.id == first_snap_id), None
-        )
+        # Ar prekė "jauna" šio snapshot'o kontekste?
+        # Taip, jei tenkina VISUS kriterijus (ta pati logika kaip _get_young_product_codes):
+        #   1. Atsirado PO pirmojo snapshot'o (ne bazinis inventorius)
+        #   2. Atsirado per paskutinius 12 mėn. nuo šio snap datos
+        #   3. Niekada neparduota
         cutoff_young = _twelve_months_back(snap.snap_date)
-        is_young = first_snap_date is not None and first_snap_date > cutoff_young
+        is_young = (
+            not ever_sold
+            and first_snap_date is not None
+            and db_first_snap_date is not None
+            and first_snap_date > db_first_snap_date
+            and first_snap_date > cutoff_young
+        )
 
         # 12 mėn. pardavimai iki šio snapshot'o datos
         cutoff = _twelve_months_back(snap.snap_date)
