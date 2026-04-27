@@ -48,59 +48,56 @@ def _twelve_months_back(d: date) -> date:
     return _months_back(d, 12)
 
 
-def _get_new_product_codes(snap_date: date, db: Session) -> set:
-    """Grąžina prekių kodus, kurie laikomi NAUJOMIS prekėmis ir NETURI patekti į
+def _get_young_product_codes(snap_date: date, db: Session) -> set:
+    """Grąžina prekių kodus, kurie laikomi NAUJAIS ir neturi patekti į
     'Visiškai nejuda' sąrašą.
 
-    Prekė laikoma NAUJA jei tenkina ABU kriterijus vienu metu:
-      1. Ji NEATSIRADO nė viename ankstesniame warehouse snapshot'e
-         (t.y. pirmą kartą matoma dabartiniu snapshot'u)
-      2. Ji NIEKADA nebuvo parduota jokiame pardavimų periode
+    Prekė laikoma NAUJA (gauna 12 mėn. lengvatą) jei tenkina VISUS kriterijus:
+      1. Pirmą kartą pasirodė sandėlyje VĖLIAU nei pirmasis snapshot'as
+         (pirmasis snapshot = bazinis inventorius, jo prekės iš karto tikrinamos)
+      2. Pirmą kartą pasirodė per PASKUTINIUS 12 MĖNESIŲ (lengvata baigiasi)
+      3. NIEKADA nebuvo parduota — reiškia tikrai nauja, ne grąžinta / perkainota
 
-    Išimtis: jei tai PIRMASIS snapshot'as (nėra ankstesnių) — nefiltruojama,
-    nes neturime pakankamai istorijos nustatyti kurios prekės yra naujos.
+    Tokios prekės neįtraukiamos į 'Visiškai nejuda' 12 mėnesių nuo pirmo
+    pasirodymo, po to tikrinamos normaliai.
     """
-    # Patikrinti ar egzistuoja bent vienas ankstesnis snapshot'as
-    has_prev = db.query(WarehouseSnapshot).filter(
-        WarehouseSnapshot.snap_date < snap_date
-    ).first() is not None
+    from sqlalchemy import func as sqlfunc
 
-    if not has_prev:
-        # Pirmasis snapshot'as — negalime nustatyti kurios prekės naujos,
-        # todėl rodome visas su 0 pardavimų per 12 mėn.
+    # Pirmasis snapshot'as = bazinis inventorius, jo prekės nėra "naujos"
+    first_snapshot = (
+        db.query(WarehouseSnapshot)
+        .order_by(WarehouseSnapshot.snap_date.asc())
+        .first()
+    )
+    if not first_snapshot:
         return set()
 
-    # Prekės, kurios egzistavo bent viename ANKSTESNIAME snapshot'e
-    in_prev_snap = {
-        r.product_code
-        for r in (
-            db.query(WarehouseItem.product_code)
-            .join(WarehouseSnapshot, WarehouseItem.snapshot_id == WarehouseSnapshot.id)
-            .filter(WarehouseSnapshot.snap_date < snap_date)
-            .distinct()
-            .all()
-        )
-    }
+    cutoff_12m = _twelve_months_back(snap_date)
 
-    # Prekės, kurios turi bent vieną pardavimą istorijoje (bet kuriame periode)
+    # Prekės, kurios kada nors buvo parduotos — jos nėra "naujos"
     ever_sold = {
         r.product_code
         for r in db.query(SalesWeekItem.product_code).distinct().all()
     }
 
-    # Prekės, kurios yra TIKTAI dabartiniame snapshot'e IR niekada neparduotos
-    current_codes = {
-        r.product_code
-        for r in (
-            db.query(WarehouseItem.product_code)
-            .join(WarehouseSnapshot, WarehouseItem.snapshot_id == WarehouseSnapshot.id)
-            .filter(WarehouseSnapshot.snap_date == snap_date)
-            .distinct()
-            .all()
+    # Pirmojo pasirodymo data kiekvienai prekei
+    rows = (
+        db.query(
+            WarehouseItem.product_code,
+            sqlfunc.min(WarehouseSnapshot.snap_date).label("first_date"),
         )
-    }
+        .join(WarehouseSnapshot, WarehouseItem.snapshot_id == WarehouseSnapshot.id)
+        .group_by(WarehouseItem.product_code)
+        .all()
+    )
 
-    return current_codes - in_prev_snap - ever_sold
+    return {
+        row.product_code
+        for row in rows
+        if row.first_date > first_snapshot.snap_date   # ne baziniame inventoriuje
+        and row.first_date > cutoff_12m                # 12 mėn. lengvata dar galioja
+        and row.product_code not in ever_sold          # tikrai niekada neparduota
+    }
 
 
 def _calc_total_days(week_snap_ids: list[int], db: Session) -> float:
@@ -152,7 +149,7 @@ def _build_analysis_data(warehouse_snap: WarehouseSnapshot, week_snap_ids: list[
             sales_qty_12m[wi.product_code] += wi.quantity
 
     # Prekių, kurios egzistuoja sandėlyje daugiau nei 12 mėn.
-    new_codes = _get_new_product_codes(warehouse_snap.snap_date, db)
+    new_codes = _get_young_product_codes(warehouse_snap.snap_date, db)
 
     # Per-product analysis
     illiquid_none    = []  # 0 pardavimų per 12m
@@ -463,7 +460,7 @@ def get_illiquid_history(
                 sales_qty_12m[wi.product_code] += wi.quantity
 
         items = db.query(WarehouseItem).filter(WarehouseItem.snapshot_id == snap.id).all()
-        new_codes = _get_new_product_codes(snap.snap_date, db)
+        new_codes = _get_young_product_codes(snap.snap_date, db)
 
         none_count = 0;    none_value = 0.0
         partial_count = 0; partial_value = 0.0
@@ -577,9 +574,13 @@ def get_product_illiquid_history(
         if not wi or wi.quantity <= 0:
             continue
 
-        # Ar prekė "nauja" šiame snapshot'e?
-        # Nauja = pirmą kartą matoma IR niekada neparduota
-        is_new_in_this_snap = (snap.id == first_snap_id and not ever_sold)
+        # Ar prekė "jauna" — sandėlyje mažiau nei 12 mėn.?
+        # Pirmo pasirodymo data = pirmojo snapshot'o, kuriame ji buvo, data
+        first_snap_date = next(
+            (s.snap_date for s in snaps if s.id == first_snap_id), None
+        )
+        cutoff_young = _twelve_months_back(snap.snap_date)
+        is_young = first_snap_date is not None and first_snap_date > cutoff_young
 
         # 12 mėn. pardavimai iki šio snapshot'o datos
         cutoff = _twelve_months_back(snap.snap_date)
@@ -590,7 +591,7 @@ def get_product_illiquid_history(
         )
 
         # Nelikvidumo tipas
-        if sold_12m == 0 and not is_new_in_this_snap:
+        if sold_12m == 0 and not is_young:
             illiquid_type = "none"
         elif sold_12m > 0 and sold_12m / wi.quantity <= 0.20:
             illiquid_type = "partial"
@@ -660,7 +661,7 @@ def get_warehouse_items(
     cat_map = _build_category_map(db)
 
     # Prekių, kurios egzistuoja sandėlyje daugiau nei 12 mėn. (naujoms nepriskiriamas "none")
-    new_codes = _get_new_product_codes(snap.snap_date, db)
+    new_codes = _get_young_product_codes(snap.snap_date, db)
 
     # Praeitos savaitės snapshot — ankstesnis pagal datą
     prev_snap = db.query(WarehouseSnapshot).filter(
@@ -673,7 +674,7 @@ def get_warehouse_items(
         prev_items = db.query(WarehouseItem).filter(WarehouseItem.snapshot_id == prev_snap.id).all()
         prev_qty = {pi.product_code: pi.quantity for pi in prev_items}
         # Prekės, kurios praeitame snapshot'e buvo laikomos "naujomis" (nepateko į Visiškai nejuda)
-        prev_new_codes = _get_new_product_codes(prev_snap.snap_date, db)
+        prev_new_codes = _get_young_product_codes(prev_snap.snap_date, db)
 
     rows = []
     for it in items:
