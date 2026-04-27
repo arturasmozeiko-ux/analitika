@@ -668,9 +668,12 @@ def get_warehouse_items(
     ).order_by(WarehouseSnapshot.snap_date.desc()).first()
 
     prev_qty: dict[str, float] = {}
+    prev_new_codes: set = set()
     if prev_snap:
         prev_items = db.query(WarehouseItem).filter(WarehouseItem.snapshot_id == prev_snap.id).all()
         prev_qty = {pi.product_code: pi.quantity for pi in prev_items}
+        # Prekės, kurios praeitame snapshot'e buvo laikomos "naujomis" (nepateko į Visiškai nejuda)
+        prev_new_codes = _get_new_product_codes(prev_snap.snap_date, db)
 
     rows = []
     for it in items:
@@ -697,6 +700,14 @@ def get_warehouse_items(
         else:
             qty_delta = None  # nėra ankstesnio snapshoto
 
+        # Ar prekė pirmą kartą patenka į "Visiškai nejuda"?
+        # Taip, jei dabar yra "none" IR ankstesniame snapshot'e jos nebuvo ARBA ji buvo "nauja"
+        is_newly_illiquid = (
+            illiquid_type == "none"
+            and prev_snap is not None
+            and (it.product_code not in prev_qty or it.product_code in prev_new_codes)
+        )
+
         rows.append({
             "product_code":         it.product_code,
             "category_code":        it.category_code or "",
@@ -715,6 +726,7 @@ def get_warehouse_items(
             "product_group_manager": it.product_group_manager or "",
             "product_category":      it.product_category or "",
             "is_clearance":          it.product_code in clearance_codes,
+            "is_newly_illiquid":     is_newly_illiquid,
         })
 
     # Sort

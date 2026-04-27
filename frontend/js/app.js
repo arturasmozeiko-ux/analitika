@@ -1827,7 +1827,11 @@ function purQtyDelta(d) {
 }
 
 // Nauja prekė šią savaitę: qty_delta === quantity (nebuvo ankstesniame snapshot'e)
+// ARBA prekė pirmą kartą patenka į "Visiškai nejuda" (is_newly_illiquid)
 function purNewBadge(i) {
+  if (i.is_newly_illiquid) {
+    return '<span style="color:#dc2626;font-weight:700;font-size:11px;white-space:nowrap">● NAUJA</span>';
+  }
   if (!i.prev_snap_date || i.qty_delta === null || i.qty_delta === undefined) return '';
   if (i.quantity > 0 && Math.abs(i.qty_delta - i.quantity) < 0.001) {
     return '<span style="color:#dc2626;font-weight:700;font-size:11px;white-space:nowrap">● NAUJA</span>';
