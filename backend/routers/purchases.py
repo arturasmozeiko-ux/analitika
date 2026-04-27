@@ -898,8 +898,14 @@ def delete_warehouse_snapshot(
     snap = db.query(WarehouseSnapshot).filter(WarehouseSnapshot.id == snapshot_id).first()
     if not snap:
         raise HTTPException(status_code=404, detail="Snapshot nerastas")
-    # Delete related analysis
-    db.query(PurchaseAnalysis).filter(PurchaseAnalysis.warehouse_snap_id == snapshot_id).delete()
+    # Pirma trinti child eilutes tiesiai per SQL (be ORM į atmintį įkėlimo),
+    # nes cascade="all, delete-orphan" įkeltų visas WarehouseItem eilutes į RAM.
+    db.query(WarehouseItem).filter(
+        WarehouseItem.snapshot_id == snapshot_id
+    ).delete(synchronize_session=False)
+    db.query(PurchaseAnalysis).filter(
+        PurchaseAnalysis.warehouse_snap_id == snapshot_id
+    ).delete(synchronize_session=False)
     db.delete(snap)
     db.commit()
     # If deleted was latest, mark newest remaining as latest
@@ -919,6 +925,10 @@ def delete_sales_week(
     snap = db.query(SalesWeekSnapshot).filter(SalesWeekSnapshot.id == snapshot_id).first()
     if not snap:
         raise HTTPException(status_code=404, detail="Periodas nerastas")
+    # Explicit SQL delete — vengti ORM krovimo į atmintį
+    db.query(SalesWeekItem).filter(
+        SalesWeekItem.snapshot_id == snapshot_id
+    ).delete(synchronize_session=False)
     db.delete(snap)
     db.commit()
     return {"message": "Periodas ištrintas"}
