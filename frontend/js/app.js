@@ -2106,7 +2106,7 @@ function purRenderNone() {
   if (prodcat) items = items.filter(i => i.product_category === prodcat);
   const sorted = purSortItems(items, purNoneSortCol, purNoneSortDir);
   purUpdateSortIcons('pur-illiquid-none-table', purNoneSortCol, purNoneSortDir);
-  document.getElementById('pur-illiquid-none-body').innerHTML = sorted.slice(0, 300).map(i => `
+  document.getElementById('pur-illiquid-none-body').innerHTML = sorted.map(i => `
     <tr>
       <td style="font-size:12px;color:var(--text-muted)">${escHtml(i.product_code)}</td>
       <td>${escHtml(i.product_name)}</td>
@@ -2130,7 +2130,7 @@ function purRenderPartial() {
   if (prodcat) items = items.filter(i => i.product_category === prodcat);
   const sorted = purSortItems(items, purPartialSortCol, purPartialSortDir);
   purUpdateSortIcons('pur-illiquid-partial-table', purPartialSortCol, purPartialSortDir);
-  document.getElementById('pur-illiquid-partial-body').innerHTML = sorted.slice(0, 300).map(i => {
+  document.getElementById('pur-illiquid-partial-body').innerHTML = sorted.map(i => {
     const pct = i.sales_12m > 0 && i.quantity > 0
       ? (i.sales_12m / i.quantity * 100).toFixed(1)
       : '0.0';
@@ -2192,7 +2192,7 @@ function purRenderOverstock() {
   if (prodcat) items = items.filter(i => i.product_category === prodcat);
   const sorted = purSortItems(items, purOverSortCol, purOverSortDir);
   purUpdateSortIcons('pur-overstock-table', purOverSortCol, purOverSortDir);
-  document.getElementById('pur-overstock-body').innerHTML = sorted.slice(0, 200).map(i => `
+  document.getElementById('pur-overstock-body').innerHTML = sorted.map(i => `
     <tr>
       <td style="font-size:12px;color:var(--text-muted)">${escHtml(i.product_code)}</td>
       <td>${escHtml(i.product_name)}</td>
