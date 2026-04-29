@@ -1714,10 +1714,23 @@ async function purLoadFilterOptions(snapId) {
   // Inventory tab
   fillSelect('pur-manager-filter',  data.managers,   'Visi vadovai');
   fillSelect('pur-prodcat-filter',  data.categories, 'Visos kategorijos');
-  // Special tabs
+  // Special tabs — manager & prodcat from server data
   ['none','partial','over'].forEach(suffix => {
     fillSelect(`pur-${suffix}-manager-filter`, data.managers,   'Visi vadovai');
     fillSelect(`pur-${suffix}-prodcat-filter`, data.categories, 'Visos kategorijos');
+  });
+  // Special tabs — class (cat) filter from purCatMap (same as main inventory)
+  const topCats = Object.entries(purCatMap)
+    .filter(([, v]) => v.level <= 1)
+    .sort(([a], [b]) => a.localeCompare(b));
+  ['none','partial','over'].forEach(suffix => {
+    const sel = document.getElementById(`pur-${suffix}-cat-filter`);
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Visos klasės</option>' +
+      topCats.map(([code, v]) =>
+        `<option value="${escHtml(code)}"${code === cur ? ' selected' : ''}>${escHtml(code)} — ${escHtml(v.name)}</option>`
+      ).join('');
   });
 }
 
@@ -2097,9 +2110,15 @@ function purUpdateSortIcons(tableId, activeCol, activeDir) {
 }
 
 function purRenderNone() {
+  const search  = (document.getElementById('pur-none-search')?.value || '').toLowerCase();
+  const cat     = document.getElementById('pur-none-cat-filter')?.value || '';
   const manager = document.getElementById('pur-none-manager-filter')?.value || '';
   const prodcat = document.getElementById('pur-none-prodcat-filter')?.value || '';
+  const sortVal = document.getElementById('pur-none-sort-select')?.value || '';
+  if (sortVal) { const [col, dir] = sortVal.split(':'); purNoneSortCol = col; purNoneSortDir = dir; }
   let items = purIlliquidNoneItems;
+  if (search)  items = items.filter(i => i.product_code.toLowerCase().includes(search) || i.product_name.toLowerCase().includes(search));
+  if (cat)     items = items.filter(i => i.category_code.startsWith(cat));
   if (manager) items = items.filter(i => i.product_group_manager === manager);
   if (prodcat) items = items.filter(i => i.product_category === prodcat);
   const sorted = purSortItems(items, purNoneSortCol, purNoneSortDir);
@@ -2121,9 +2140,15 @@ function purRenderNone() {
 }
 
 function purRenderPartial() {
+  const search  = (document.getElementById('pur-partial-search')?.value || '').toLowerCase();
+  const cat     = document.getElementById('pur-partial-cat-filter')?.value || '';
   const manager = document.getElementById('pur-partial-manager-filter')?.value || '';
   const prodcat = document.getElementById('pur-partial-prodcat-filter')?.value || '';
+  const sortVal = document.getElementById('pur-partial-sort-select')?.value || '';
+  if (sortVal) { const [col, dir] = sortVal.split(':'); purPartialSortCol = col; purPartialSortDir = dir; }
   let items = purIlliquidPartialItems;
+  if (search)  items = items.filter(i => i.product_code.toLowerCase().includes(search) || i.product_name.toLowerCase().includes(search));
+  if (cat)     items = items.filter(i => i.category_code.startsWith(cat));
   if (manager) items = items.filter(i => i.product_group_manager === manager);
   if (prodcat) items = items.filter(i => i.product_category === prodcat);
   const sorted = purSortItems(items, purPartialSortCol, purPartialSortDir);
@@ -2183,9 +2208,15 @@ function purRenderSpecialTabs(items, totalDays) {
 }
 
 function purRenderOverstock() {
+  const search  = (document.getElementById('pur-over-search')?.value || '').toLowerCase();
+  const cat     = document.getElementById('pur-over-cat-filter')?.value || '';
   const manager = document.getElementById('pur-over-manager-filter')?.value || '';
   const prodcat = document.getElementById('pur-over-prodcat-filter')?.value || '';
+  const sortVal = document.getElementById('pur-over-sort-select')?.value || '';
+  if (sortVal) { const [col, dir] = sortVal.split(':'); purOverSortCol = col; purOverSortDir = dir; }
   let items = purOverstockItems;
+  if (search)  items = items.filter(i => i.product_code.toLowerCase().includes(search) || i.product_name.toLowerCase().includes(search));
+  if (cat)     items = items.filter(i => i.category_code.startsWith(cat));
   if (manager) items = items.filter(i => i.product_group_manager === manager);
   if (prodcat) items = items.filter(i => i.product_category === prodcat);
   const sorted = purSortItems(items, purOverSortCol, purOverSortDir);
@@ -2221,12 +2252,20 @@ function purSetupFilters() {
   document.getElementById('pur-prodcat-filter').addEventListener('change', () => purLoadInventory());
 
   // Special tab filters (client-side re-render)
+  const specialTimers = {};
   ['none','partial','over'].forEach(suffix => {
-    const mgr = document.getElementById(`pur-${suffix}-manager-filter`);
-    const cat = document.getElementById(`pur-${suffix}-prodcat-filter`);
     const renderFn = { none: purRenderNone, partial: purRenderPartial, over: purRenderOverstock }[suffix];
-    if (mgr) mgr.addEventListener('change', renderFn);
-    if (cat) cat.addEventListener('change', renderFn);
+    // Search with debounce
+    const srch = document.getElementById(`pur-${suffix}-search`);
+    if (srch) srch.addEventListener('input', () => {
+      clearTimeout(specialTimers[suffix]);
+      specialTimers[suffix] = setTimeout(renderFn, 250);
+    });
+    // Dropdowns — immediate re-render
+    ['cat-filter','manager-filter','prodcat-filter','sort-select'].forEach(id => {
+      const el = document.getElementById(`pur-${suffix}-${id}`);
+      if (el) el.addEventListener('change', renderFn);
+    });
   });
   document.getElementById('pur-sort-select').addEventListener('change', () => {
     const v = document.getElementById('pur-sort-select').value;

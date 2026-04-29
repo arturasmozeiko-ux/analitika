@@ -490,8 +490,17 @@
       <div class="pur-tab-content" id="pur-tab-illiquid-none">
         <div id="pur-illiq-panel-none"></div>
         <div class="pur-filters" style="margin-bottom:8px;">
+          <input type="text" id="pur-none-search" placeholder="Ieškoti pagal kodą ar pavadinimą..." class="pur-search-input" />
+          <select id="pur-none-cat-filter" class="pur-cat-select"><option value="">Visos klasės</option></select>
           <select id="pur-none-manager-filter" class="pur-cat-select"><option value="">Visi vadovai</option></select>
           <select id="pur-none-prodcat-filter" class="pur-cat-select"><option value="">Visos kategorijos</option></select>
+          <select id="pur-none-sort-select" class="pur-sort-select">
+            <option value="total_value:desc">Didžiausia vertė</option>
+            <option value="total_value:asc">Mažiausia vertė</option>
+            <option value="product_name:asc">Pavadinimas A–Z</option>
+            <option value="quantity:desc">Didžiausias kiekis</option>
+            <option value="is_new:desc">NAUJA pirmiau</option>
+          </select>
         </div>
         <div class="table-wrap">
           <table class="pur-table" id="pur-illiquid-none-table">
@@ -526,8 +535,18 @@
       <div class="pur-tab-content" id="pur-tab-illiquid-partial">
         <div id="pur-illiq-panel-partial"></div>
         <div class="pur-filters" style="margin-bottom:8px;">
+          <input type="text" id="pur-partial-search" placeholder="Ieškoti pagal kodą ar pavadinimą..." class="pur-search-input" />
+          <select id="pur-partial-cat-filter" class="pur-cat-select"><option value="">Visos klasės</option></select>
           <select id="pur-partial-manager-filter" class="pur-cat-select"><option value="">Visi vadovai</option></select>
           <select id="pur-partial-prodcat-filter" class="pur-cat-select"><option value="">Visos kategorijos</option></select>
+          <select id="pur-partial-sort-select" class="pur-sort-select">
+            <option value="total_value:desc">Didžiausia vertė</option>
+            <option value="total_value:asc">Mažiausia vertė</option>
+            <option value="product_name:asc">Pavadinimas A–Z</option>
+            <option value="sold_pct:asc">Blogiausias % (mažiausiai parduota)</option>
+            <option value="sales_12m:desc">Daugiausiai parduota 12m</option>
+            <option value="quantity:desc">Didžiausias kiekis</option>
+          </select>
         </div>
         <div class="table-wrap">
           <table class="pur-table" id="pur-illiquid-partial-table">
@@ -565,8 +584,18 @@
       <div class="pur-tab-content" id="pur-tab-overstock">
         <div class="pur-tab-header" id="pur-overstock-header"></div>
         <div class="pur-filters" style="margin-bottom:8px;">
+          <input type="text" id="pur-over-search" placeholder="Ieškoti pagal kodą ar pavadinimą..." class="pur-search-input" />
+          <select id="pur-over-cat-filter" class="pur-cat-select"><option value="">Visos klasės</option></select>
           <select id="pur-over-manager-filter" class="pur-cat-select"><option value="">Visi vadovai</option></select>
           <select id="pur-over-prodcat-filter" class="pur-cat-select"><option value="">Visos kategorijos</option></select>
+          <select id="pur-over-sort-select" class="pur-sort-select">
+            <option value="total_value:desc">Didžiausia vertė</option>
+            <option value="total_value:asc">Mažiausia vertė</option>
+            <option value="product_name:asc">Pavadinimas A–Z</option>
+            <option value="days_stock:desc">Daugiausiai liko dienų</option>
+            <option value="days_stock:asc">Mažiausiai liko dienų</option>
+            <option value="quantity:desc">Didžiausias kiekis</option>
+          </select>
         </div>
         <div class="table-wrap">
           <table class="pur-table" id="pur-overstock-table">
