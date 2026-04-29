@@ -1655,9 +1655,7 @@ async function purLoadWarehouseSnapshots() {
     `<option value="${s.id}" data-value="${s.total_value}" data-items="${s.total_items}" data-analysis="${s.analysis_complete}">${s.snap_date}${s.is_latest ? ' (naujausias)' : ''}</option>`
   ).join('');
 
-  sel.addEventListener('change', () => {
-    purSelectSnapshot(parseInt(sel.value));
-  });
+  sel.onchange = () => purSelectSnapshot(parseInt(sel.value));
 
   purSetChip('pur-chip-wh', snaps[0].snap_date, true);
   purSelectSnapshot(snaps[0].id, snaps[0]);
@@ -2819,9 +2817,9 @@ function purCommentCellInner(code) {
     ? escHtml(last.text.length > 38 ? last.text.slice(0, 38) + '…' : last.text)
     : '';
   const btnClass = count > 0 ? 'pur-comment-btn has-comments' : 'pur-comment-btn';
-  return `<div class="pur-comment-inner">
+  return `<div class="pur-comment-inner" onclick="purOpenCommentModal('${escAttr(code)}',event)">
     ${preview ? `<span class="pur-comment-preview" title="${escAttr(last.text)}">${preview}</span>` : ''}
-    <button class="${btnClass}" onclick="purOpenCommentModal('${escAttr(code)}',event)">💬${count > 0 ? ' ' + count : ''}</button>
+    <button class="${btnClass}">💬${count > 0 ? ' ' + count : ''}</button>
   </div>`;
 }
 
@@ -2848,6 +2846,7 @@ async function purLoadComments() {
 
 async function purOpenCommentModal(code, e) {
   if (e) e.stopPropagation();
+  if (purCommentModalCode === code && !document.getElementById('pur-comment-modal').classList.contains('hidden')) return;
   const allItems = [...(purIlliquidNoneItems || []), ...(purIlliquidPartialItems || [])];
   const item = allItems.find(i => i.product_code === code);
   const name = item ? item.product_name : code;
