@@ -1733,7 +1733,7 @@ async function purLoadInventory() {
   const prodcat = document.getElementById('pur-prodcat-filter').value;
   const search  = document.getElementById('pur-search').value.trim();
 
-  const params = new URLSearchParams({ limit: 5000, offset: 0, sort: 'value_desc' });
+  const params = new URLSearchParams({ limit: 10000, offset: 0, sort: 'value_desc' });
   if (cat)     params.set('category', cat);
   if (search)  params.set('search', search);
 
