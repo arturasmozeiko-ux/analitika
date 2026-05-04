@@ -2264,7 +2264,7 @@ function purRenderPartial() {
 function purRenderSpecialTabs(items, totalDays) {
   purIlliquidNoneItems    = items.filter(i => i.illiquid_type === 'none');
   purIlliquidPartialItems = items.filter(i => i.illiquid_type === 'partial');
-  const overstock = items.filter(i => i.days_stock !== null && i.days_stock > 84 && i.days_stock < 999);
+  const overstock = items.filter(i => i.days_stock !== null && i.days_stock > 84);
 
   const overstockVal = overstock.reduce((s, i) => s + i.total_value, 0);
 
