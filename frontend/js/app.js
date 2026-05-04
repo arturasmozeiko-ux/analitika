@@ -1774,6 +1774,7 @@ async function purLoadInventory() {
   // Load illiquid history for all snapshots (for comparison dropdown)
   purLoadIlliquidHistory();
   purLoadClearanceStatus();
+  purLoadIlliquidRemoved(purCurrentSnapId);
 
   purSortAndRender();
 }
@@ -1953,6 +1954,95 @@ async function purLoadIlliquidHistory() {
   purIlliqPanelOpen = false;
   purRenderIlliqPanel('none');
   purRenderIlliqPanel('partial');
+}
+
+async function purLoadIlliquidRemoved(snapId) {
+  const el_none    = document.getElementById('pur-none-removed');
+  const el_partial = document.getElementById('pur-partial-removed');
+  if (el_none)    el_none.innerHTML    = '';
+  if (el_partial) el_partial.innerHTML = '';
+
+  const res = await apiFetch(`/api/purchases/warehouse/snapshots/${snapId}/illiquid-removed`);
+  if (!res || !res.ok) return;
+  const data = await res.json();
+
+  if (el_none)    purRenderRemovedSection(el_none,    data.none_removed,    'none',    data.prev_snap_date);
+  if (el_partial) purRenderRemovedSection(el_partial, data.partial_removed, 'partial', data.prev_snap_date);
+}
+
+function purRenderRemovedSection(container, items, type, prevDate) {
+  if (!items || items.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const totalVal    = items.reduce((s, i) => s + i.prev_total_value, 0);
+  const label       = type === 'none' ? 'Visiškai nejuda' : 'Dalinai nejuda';
+  const prevDateStr = prevDate ? ` (nuo ${prevDate})` : '';
+
+  const reasonLabel = r => {
+    if (r === 'depleted')        return '<span style="background:#dcfce7;color:#166534;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">Išsipardavė</span>';
+    if (r === 'started_selling') return '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">Pradėjo judėti</span>';
+    if (r === 'recovered')       return '<span style="background:#dcfce7;color:#166534;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">Atsigavo</span>';
+    return '<span style="background:#f1f5f9;color:#475569;padding:2px 7px;border-radius:10px;font-size:11px">Kita</span>';
+  };
+
+  const rows = items.map(i => {
+    const valChange = i.curr_total_value - i.prev_total_value;
+    const valStr    = valChange < 0
+      ? `<span style="color:#16a34a">▼ ${fmt(Math.abs(valChange))}</span>`
+      : (valChange > 0 ? `<span style="color:#dc2626">▲ ${fmt(valChange)}</span>` : '—');
+    return `<tr>
+      <td style="font-size:12px;color:var(--text-muted)">${escHtml(i.product_code)}</td>
+      <td>${escHtml(i.product_name)}</td>
+      <td style="font-size:12px">${escHtml(i.category_code)}</td>
+      <td style="font-size:12px">${escHtml(i.product_group_manager || '—')}</td>
+      <td style="font-size:12px">${escHtml(i.product_category || '—')}</td>
+      <td>${reasonLabel(i.reason)}</td>
+      <td class="num">${i.prev_quantity.toLocaleString('lt',{maximumFractionDigits:2})}</td>
+      <td class="num">${i.curr_quantity > 0 ? i.curr_quantity.toLocaleString('lt',{maximumFractionDigits:2}) : '<span style="color:#94a3b8">0</span>'}</td>
+      <td class="num"><strong>${fmt(i.prev_total_value)}</strong></td>
+      <td class="num">${valStr}</td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="margin:18px 0 6px;border-top:2px solid #e2e8f0;padding-top:14px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;cursor:pointer;user-select:none"
+           onclick="this.closest('[data-removed-wrap]').querySelector('[data-removed-body]').classList.toggle('hidden');this.querySelector('.pur-removed-arrow').textContent=this.querySelector('[data-removed-body]')?.classList.contains('hidden')?'▶':'▼'">
+        <span style="font-weight:700;font-size:14px;color:#166534">✓ Pasalinta iš „${label}" sąrašo${prevDateStr}</span>
+        <span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:12px;font-size:13px;font-weight:700">${items.length} prekių</span>
+        <span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:12px;font-size:13px;font-weight:700">−${fmt(totalVal)} €</span>
+        <span class="pur-removed-arrow" style="color:#64748b;font-size:12px">▼</span>
+      </div>
+    </div>
+    <div data-removed-wrap>
+      <div data-removed-body>
+        <div class="table-wrap">
+          <table class="pur-table">
+            <thead><tr>
+              <th>Kodas</th><th>Pavadinimas</th><th>Klasė</th><th>Vadovas</th><th>Kategorija</th>
+              <th>Priežastis</th>
+              <th class="num">Kiekis anksčiau</th>
+              <th class="num">Kiekis dabar</th>
+              <th class="num">Vertė anksčiau €</th>
+              <th class="num">Pokytis €</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+
+  // Fix onclick — need proper toggle reference
+  const wrap    = container.querySelector('[data-removed-wrap]');
+  const header  = container.querySelector('[style*="cursor:pointer"]');
+  const body    = wrap.querySelector('[data-removed-body]');
+  const arrow   = header.querySelector('.pur-removed-arrow');
+  header.onclick = () => {
+    body.classList.toggle('hidden');
+    arrow.textContent = body.classList.contains('hidden') ? '▶' : '▼';
+  };
 }
 
 function _ihlDelta(d, unit) {

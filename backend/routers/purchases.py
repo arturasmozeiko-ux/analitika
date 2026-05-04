@@ -960,6 +960,146 @@ def delete_sales_week(
     return {"message": "Periodas ištrintas"}
 
 
+# ── ILLIQUID REMOVED ───────────────────────────────────────────────────────────
+
+@router.get("/warehouse/snapshots/{snapshot_id}/illiquid-removed")
+def get_illiquid_removed(
+    snapshot_id: int,
+    current_user: User = Depends(require_purchases),
+    db: Session = Depends(get_db),
+):
+    """Grąžina prekes, kurios BUVO nejudančių sąraše ankstesniame snapshot'e,
+    bet DABAR nebėra — t.y. pradėjo judėti, išsipardavė ar kt.
+
+    none_removed  — iš 'Visiškai nejuda' dingusios prekės
+    partial_removed — iš 'Dalinai nejuda' dingusios prekės
+    """
+    snap = db.query(WarehouseSnapshot).filter(WarehouseSnapshot.id == snapshot_id).first()
+    if not snap:
+        raise HTTPException(status_code=404, detail="Snapshot nerastas")
+
+    prev_snap = db.query(WarehouseSnapshot).filter(
+        WarehouseSnapshot.snap_date < snap.snap_date
+    ).order_by(WarehouseSnapshot.snap_date.desc()).first()
+
+    if not prev_snap:
+        return {"none_removed": [], "partial_removed": [], "prev_snap_date": None}
+
+    def _illiquid_map(s: WarehouseSnapshot) -> dict:
+        """Grąžina {product_code: illiquid_type} visiems produktams snapshot'e."""
+        items = db.query(WarehouseItem).filter(WarehouseItem.snapshot_id == s.id).all()
+        cutoff = _twelve_months_back(s.snap_date)
+        snaps_12m = db.query(SalesWeekSnapshot).filter(
+            SalesWeekSnapshot.period_from >= cutoff,
+            SalesWeekSnapshot.period_to   <= s.snap_date,
+        ).all()
+        ids_12m = [x.id for x in snaps_12m]
+        sales_12m: dict[str, float] = defaultdict(float)
+        if ids_12m:
+            for wi in db.query(SalesWeekItem).filter(SalesWeekItem.snapshot_id.in_(ids_12m)).all():
+                sales_12m[wi.product_code] += wi.quantity
+        new_codes = _get_young_product_codes(s.snap_date, db)
+        result = {}
+        for it in items:
+            if it.quantity <= 0:
+                continue
+            sold = sales_12m.get(it.product_code, 0.0)
+            if sold == 0 and it.product_code not in new_codes:
+                result[it.product_code] = "none"
+            elif sold > 0 and sold / it.quantity <= 0.20:
+                result[it.product_code] = "partial"
+            else:
+                result[it.product_code] = "ok"
+        return result
+
+    prev_map = _illiquid_map(prev_snap)
+    curr_map = _illiquid_map(snap)
+
+    # Item lookups
+    curr_items = {wi.product_code: wi for wi in
+                  db.query(WarehouseItem).filter(WarehouseItem.snapshot_id == snapshot_id).all()}
+    prev_items_db = {wi.product_code: wi for wi in
+                     db.query(WarehouseItem).filter(WarehouseItem.snapshot_id == prev_snap.id).all()}
+
+    # Current 12m sales (for reason)
+    cutoff_curr = _twelve_months_back(snap.snap_date)
+    ids_curr = [x.id for x in db.query(SalesWeekSnapshot).filter(
+        SalesWeekSnapshot.period_from >= cutoff_curr,
+        SalesWeekSnapshot.period_to   <= snap.snap_date,
+    ).all()]
+    sales_curr: dict[str, float] = defaultdict(float)
+    if ids_curr:
+        for wi in db.query(SalesWeekItem).filter(SalesWeekItem.snapshot_id.in_(ids_curr)).all():
+            sales_curr[wi.product_code] += wi.quantity
+
+    cat_map = _build_category_map(db)
+
+    none_removed = []
+    partial_removed = []
+
+    for code, prev_type in prev_map.items():
+        curr_type = curr_map.get(code)  # None = dingo iš sandėlio
+        if curr_type == prev_type:
+            continue  # Vis dar tame pačiame sąraše
+
+        prev_wi = prev_items_db.get(code)
+        curr_wi = curr_items.get(code)
+        wi_ref  = curr_wi or prev_wi
+
+        prev_qty = round(prev_wi.quantity,    2) if prev_wi else 0.0
+        curr_qty = round(curr_wi.quantity,    2) if curr_wi else 0.0
+        prev_val = round(prev_wi.total_value, 2) if prev_wi else 0.0
+        curr_val = round(curr_wi.total_value, 2) if curr_wi else 0.0
+        curr_sold = round(sales_curr.get(code, 0.0), 2)
+
+        # Priežastis
+        if curr_wi is None or curr_qty == 0:
+            reason = "depleted"         # Išsipardavė / nurašyta — dingo iš sandėlio
+        elif prev_type == "none" and curr_type == "partial":
+            reason = "started_selling"  # Pradėjo judėti (pateko į dalinai)
+        elif prev_type == "none" and curr_type == "ok":
+            reason = "recovered"        # Visiškai atsigavo (>20% parduota)
+        elif prev_type == "partial" and curr_type == "ok":
+            reason = "recovered"        # Dalinai atsigavo → normalus likutis
+        elif prev_type == "partial" and curr_type == "none":
+            reason = "worsened"         # Buvo dalinai, dabar visiškai nejuda (blogiau)
+        else:
+            reason = "other"
+
+        row = {
+            "product_code":          code,
+            "product_name":          wi_ref.product_name          if wi_ref else code,
+            "category_code":         (wi_ref.category_code or "")  if wi_ref else "",
+            "category_name":         cat_map.get(wi_ref.category_code or "", "") if wi_ref else "",
+            "product_group_manager": (wi_ref.product_group_manager or "") if wi_ref else "",
+            "product_category":      (wi_ref.product_category or "")      if wi_ref else "",
+            "prev_quantity":   prev_qty,
+            "curr_quantity":   curr_qty,
+            "prev_total_value": prev_val,
+            "curr_total_value": curr_val,
+            "curr_sold_12m":   curr_sold,
+            "reason":          reason,
+            "curr_type":       curr_type,  # kur dabar priklauso (partial/ok/None)
+        }
+
+        if prev_type == "none":
+            # Rodo tik teigiamus pokyčius — prastėjimas (none→partial aptinkamas atskirai)
+            none_removed.append(row)
+        elif prev_type == "partial" and reason != "worsened":
+            # Iš dalinai nejuda — tik gerėjimas (worsened prekės čia nerodomos)
+            partial_removed.append(row)
+
+    # Didžiausias sumažėjimas pagal vertę — pirmiau
+    none_removed.sort(key=lambda x: -(x["prev_total_value"] - x["curr_total_value"]))
+    partial_removed.sort(key=lambda x: -(x["prev_total_value"] - x["curr_total_value"]))
+
+    return {
+        "none_removed":     none_removed,
+        "partial_removed":  partial_removed,
+        "prev_snap_date":   str(prev_snap.snap_date),
+    }
+
+
 # ── ANALYSIS ───────────────────────────────────────────────────────────────────
 
 @router.post("/warehouse/snapshots/{snapshot_id}/analyze")
