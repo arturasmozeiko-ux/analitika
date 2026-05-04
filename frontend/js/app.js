@@ -2319,6 +2319,7 @@ function purRenderOverstock() {
       <td class="num">${i.daily_avg > 0 ? i.daily_avg.toFixed(3) : '—'}</td>
       <td class="num">${purWeeksStockBadge(i.days_stock)}</td>
       <td style="text-align:center">${purClearanceBadge(i.is_clearance)}</td>
+      <td class="pur-comment-cell" data-code="${escAttr(i.product_code)}">${purCommentCellInner(i.product_code)}</td>
     </tr>`).join('');
 }
 
